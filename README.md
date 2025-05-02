@@ -2,8 +2,8 @@
 
 Objetivos:
 
-- [ ] [Búsqueda binaria](#búsqueda-binaria).
-- [ ] [Búsqueda galopante](#búsqueda-galopante).
+- [x] [Búsqueda binaria](#búsqueda-binaria).
+- [x] [Búsqueda galopante](#búsqueda-galopante).
 - [ ] [Algoritmo Tradicional](#algoritmo-tradicional)
 - [ ] [Dr1](#dr1) (Algoritmo recursivo semejante al tradicional en tiempos)
 - [ ] [Dr2](#dr2) (Algoritmo de Strassen n^2.81)
@@ -17,15 +17,16 @@ if (i = f) then
 if (A[(f-i)/2] = x) then
     return (f-i) / 2
 if (A[(f-i)/2] < x) then
-    BusquedaBinaria(A, i, (f-i)/2, x)
-if (A[(f-i)/2] > x) then
     BusquedaBinaria(A, (f-i)/2, f, x)
+if (A[(f-i)/2] > x) then
+    BusquedaBinaria(A, i, (f-i)/2, x)
 ```
 
 Donde:
 
 - *A* es el arreglo.
-- *size* es el tamaño del arreglo.
+- *i* es indice inicial.
+- *f* es indice final.
 - *x* es el valor a buscar.
 
 ## Búsqueda Galopante
