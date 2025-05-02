@@ -201,7 +201,7 @@ indice BusquedaGalopante(const unsigned int* A, indice size, unsigned int x)
 
 int main()
 {
-    const indice N = 5000000;
+    const indice N = 5000000000;
     const int MIN_VAL = 1, MAX_VAL = 10000000;
     unsigned int* A = nullptr;
     string output_filename = "resultados_busqueda_" + std::to_string(N) + ".txt";
@@ -251,7 +251,7 @@ int main()
     }
     cout << "Los resultados se guardarán en: " << output_filename << endl << endl;
 
-    vector<int> claves = {1000, 5000, 10000, 50000, 100000};
+    vector<int> claves = {10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000};
     uniform_int_distribution<> key_distrib(MIN_VAL, MAX_VAL);
 
     ostringstream oss_header;
