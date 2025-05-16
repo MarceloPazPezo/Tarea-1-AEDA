@@ -11,6 +11,9 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <thread>
+#include <mutex>
+#include <numeric>
 
 using namespace std;
 
@@ -62,6 +65,136 @@ void MergeSort(unsigned int* A, indice left, indice right) {
     MergeSort(A, mid, right);
 
     Merge(A, left, mid, right);
+}
+
+void Swap(unsigned int* a, unsigned int* b)
+{
+    unsigned int temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+indice Partition(unsigned int* arr, indice low, indice high)
+{
+    unsigned int pivot = arr[high];
+    indice i = low;
+
+    for (indice j = low; j < high; j++) {
+        if (arr[j] < pivot) {
+            if (i != j) {
+                Swap(&arr[i], &arr[j]);
+            }
+            i++;
+        }
+    }
+    Swap(&arr[i], &arr[high]);
+    return i;
+}
+
+void QuickSort(unsigned int* arr, indice low, indice high)
+{
+    if (low < high && high != std::numeric_limits<indice>::max()) {
+        indice pi = Partition(arr, low, high);
+        if (pi > low) {
+            QuickSort(arr, low, pi - 1);
+        }
+
+        if (pi < high) {
+            QuickSort(arr, pi + 1, high);
+        }
+    }
+}
+
+void parallelCountingSort(unsigned int* arr, indice N, unsigned int min_val_datos, unsigned int max_val_datos, unsigned int num_threads)
+{
+    if (N == 0) return;
+    if (min_val_datos > max_val_datos) {
+        cerr << "Error en parallelCountingSort: min_val_datos no puede ser mayor que max_val_datos." << endl;
+        return;
+    }
+
+    indice range_size = static_cast<indice>(max_val_datos) - min_val_datos + 1;
+
+    cout << "Fase de conteo paralelo con " << num_threads << " hilos..." << endl;
+    std::vector<std::thread> threads_count;
+    std::vector<std::vector<unsigned long long>> local_counts(num_threads, std::vector<unsigned long long>(range_size, 0));
+
+    indice chunk_size = (N + num_threads - 1) / num_threads;
+
+    auto count_chunk_task = [&](unsigned int thread_id, indice start_idx, indice end_idx) {
+        for (indice i = start_idx; i < end_idx; ++i) {
+            if (arr[i] >= min_val_datos && arr[i] <= max_val_datos) {
+                local_counts[thread_id][arr[i] - min_val_datos]++;
+            } else {
+            }
+        }
+    };
+
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        indice start_idx = i * chunk_size;
+        indice end_idx = std::min(start_idx + chunk_size, N);
+        if (start_idx < end_idx) {
+            threads_count.emplace_back(count_chunk_task, i, start_idx, end_idx);
+        }
+    }
+
+    for (auto& t : threads_count) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    std::vector<unsigned long long> global_counts(range_size, 0);
+    for (unsigned int val_idx = 0; val_idx < range_size; ++val_idx) {
+        for (unsigned int t = 0; t < num_threads; ++t) {
+            global_counts[val_idx] += local_counts[t][val_idx];
+        }
+    }
+    local_counts.clear();
+
+    cout << "Calculando posiciones de inicio para reconstruccion paralela..." << endl;
+    std::vector<unsigned long long> output_start_indices(range_size + 1, 0);
+    for (indice i = 0; i < range_size; ++i) {
+        output_start_indices[i+1] = output_start_indices[i] + global_counts[i];
+    }
+
+    cout << "Fase de reconstruccion paralela con " << num_threads << " hilos..." << endl;
+    std::vector<std::thread> threads_reconstruct;
+
+    indice values_per_thread = (range_size + num_threads - 1) / num_threads;
+
+    auto reconstruct_chunk_task = [&](unsigned int thread_id, indice start_val_idx, indice end_val_idx) {
+        for (indice val_idx = start_val_idx; val_idx < end_val_idx; ++val_idx) {
+            unsigned int actual_value = min_val_datos + val_idx;
+            unsigned long long start_write_pos = output_start_indices[val_idx];
+            unsigned long long end_write_pos = output_start_indices[val_idx + 1];
+            
+            for (unsigned long long k = start_write_pos; k < end_write_pos; ++k) {
+                 if (k < N) {
+                    arr[k] = actual_value;
+                } else {
+                     cerr << "Error (hilo " << thread_id << "): k (" << k << ") excedió N (" << N << ") durante la reconstrucción." << endl;
+                     return;
+                }
+            }
+        }
+    };
+    
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        indice start_val_idx = i * values_per_thread;
+        indice end_val_idx = std::min(start_val_idx + values_per_thread, range_size);
+        if (start_val_idx < end_val_idx) {
+            threads_reconstruct.emplace_back(reconstruct_chunk_task, i, start_val_idx, end_val_idx);
+        }
+    }
+
+    for (auto& t : threads_reconstruct) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    cout << "Ordenamiento por conteo paralelo completado ";
 }
 
 int bBinaria(short A[], int linf, int size, int x)
@@ -123,9 +256,9 @@ indice BusquedaBinaria(const unsigned int* A, indice i, indice f, unsigned int x
         return mid;
     }
     else if (A[mid] > x) {
-         if (mid == 0) {
+        if (mid == 0) {
             return std::numeric_limits<indice>::max();
-         }
+        }
         return BusquedaBinaria(A, i, mid - 1, x);
     }
     else {
@@ -156,58 +289,59 @@ indice BusquedaGalopante(const unsigned int* A, indice size, unsigned int x)
         }
         // return BusquedaBinaria(A, linf, size, x);
         // return BusquedaBinaria(A, linf - 1, size - linf, x);
-        return BusquedaBinaria(A, linf - 1, size - 1, x);
+        // cout << "linf: " << linf << endl;
+        // cout << "size - 1:" << size - 1 << endl;
+        // cout << "min: " << min(linf * 2, size - 1) << endl;
+        indice lsup = min(linf * 2, size - 1);
+        return BusquedaBinaria(A, linf - 1, lsup, x);
     }
 }
 
-// int main()
-// {
-//     int tam = 10000;//tamaño del arreglo
-//     short Arr[tam]; //= {1,2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59};
-//     unsigned t0, t1;
-//     short val;
-//     for (int i = 0; i < tam; i++)
-//     {
-//         val = short(rand() % ((i + 1) * 3));//llenado de randoms en orden
-//         if (val > Arr[i - 1] || i == 0)
-//         {
-//             Arr[i] = val;
-//             // cout<<val<<" ";
-//         }
-//         else
-//         {
-//             i--;
-//         }
-//     }
-//     cout << endl;
-//     int valR = int(rand() % tam);
-//     cout << "posicion: " << valR << endl;
-//     valR = Arr[valR];
-//     cout << "valor: " << valR << endl;
-//     t0 = clock();
-//     int res = bGalopante(Arr, tam, valR);
-//     t1 = clock();
-//     double tiempo = double((t1 - t0)  / CLOCKS_PER_SEC);
-//     if (res == -1)
-//     {
-//         cout << "Valor no encontrado, tiempo: " << tiempo << endl;
-//     }
-//     else
-//     {
-//         cout << "El valor " << valR << " fue encontrado en la posicion:" << res << " tiempo: " << tiempo << " ms" << endl;
-//     }
-//     return 0;
-// }
-
-int main()
+int main(int argc, char* argv[])
 {
-    const indice N = 5000000;
+    if (argc < 2) {
+        cerr << "Error: Debes proporcionar el valor de N como argumento." << endl;
+        cerr << "Uso: " << argv[0] << " <valor_de_N> [num_hilos (opcional)]" << endl;
+        return 1;
+    }
+
+    indice N;
+    try {
+        N = std::stoull(argv[1]);
+        if (N == 0 && argc > 0) {
+             cout << "N es 0, no se realizarán operaciones de ordenamiento/búsqueda en el arreglo A." << endl;
+        } else if (N <= 0) {
+            cerr << "Error: N debe ser un entero positivo (o 0 si se maneja explícitamente)." << endl;
+            return 1;
+        }
+    } catch (const std::invalid_argument& ia) {
+        cerr << "Error: Argumento invalido para N: '" << argv[1] << "'. Debe ser un numero." << endl;
+        return 1;
+    } catch (const std::out_of_range& oor) {
+        cerr << "Error: El valor de N ('" << argv[1] << "') esta fuera de rango para un unsigned long long." << endl;
+        return 1;
+    }
+
+    unsigned int num_hilos = std::thread::hardware_concurrency();
+    if (argc > 2) {
+        try {
+            int hilos_arg = std::stoi(argv[2]);
+            if (hilos_arg > 0) {
+                num_hilos = hilos_arg;
+            } else {
+                cout << "Numero de hilos invalido, usando por defecto: " << num_hilos << endl;
+            }
+        } catch (const std::exception& e) {
+            cout << "Argumento de hilos invalido (" << e.what() << "), usando por defecto: " << num_hilos << endl;
+        }
+    }
+    cout << "Usando " << num_hilos << " hilos para operaciones paralelas." << endl;
+
     const int MIN_VAL = 1, MAX_VAL = 10000000;
     unsigned int* A = nullptr;
     string output_filename = "resultados_busqueda_" + std::to_string(N) + ".txt";
     cout << "ADVERTENCIA: Intentando asignar memoria para N = " << N << " elementos." << endl;
     cout << "Esto requiere aproximadamente " << (N * sizeof(unsigned int)) / (1024.0 * 1024.0 * 1024.0) << " GiB de RAM." << endl;
-    cout << "La operacion podria fallar o ser muy lenta debido a restricciones de memoria." << endl;
     try {
         A = new unsigned int[N];
         cout << "Asignacion de memoria exitosa." << endl;
@@ -226,18 +360,23 @@ int main()
         A[i] = distrib(gen);
         // cout << A[i] << " ";
     }
-    cout << endl << endl;
+    // cout << endl << endl;
 
-    cout << "Ordenando el arreglo A por MergeSort... ";
+    // cout << "Ordenando el arreglo A por MergeSort... ";
     auto inicio = chrono::high_resolution_clock::now();
-    MergeSort(A, 0, N);
+    if (N > 0) {
+        // MergeSort(A, 0, N);
+        // QuickSort(A, 0, N - 1);
+        // sort(A, A + N);
+        parallelCountingSort(A, N, MIN_VAL, MAX_VAL, num_hilos);
+    }
     auto termino = chrono::high_resolution_clock::now();
     chrono::duration<double, milli> tiempoMergeSort = termino - inicio;
-    cout << "ordenado en " << fixed << setprecision(6) << tiempoMergeSort.count() << " ms." << endl;
+    cout << "y ordenado en " << fixed << setprecision(6) << tiempoMergeSort.count() << " ms." << endl;
     cout << endl;
 
     // cout << "Arreglo ordenado: " << endl;
-    // for (int i = 0; i < N; ++i) {
+    // for (indice i = 0; i < N; ++i) {
     //     cout << A[i] << " ";
     // }
     // cout << endl << endl;
@@ -249,9 +388,8 @@ int main()
         delete[] A;
         return 1;
     }
-    cout << "Los resultados se guardarán en: " << output_filename << endl << endl;
 
-    vector<int> claves = {1000, 5000, 10000, 50000, 100000};
+    vector<int> claves = {10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000};
     uniform_int_distribution<> key_distrib(MIN_VAL, MAX_VAL);
 
     ostringstream oss_header;
