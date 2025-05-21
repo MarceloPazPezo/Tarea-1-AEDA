@@ -197,7 +197,7 @@ void parallelCountingSort(unsigned int* arr, indice N, unsigned int min_val_dato
     cout << "Ordenamiento por conteo paralelo completado ";
 }
 
-int bBinaria(short A[], int linf, int size, int x)
+int bBinaria(const unsigned int* A, int linf, int size, int x)
 {
     // cout<<linf + (size / 2)<<endl;
     if (size == 0)
@@ -218,7 +218,7 @@ int bBinaria(short A[], int linf, int size, int x)
     }
 }
 
-int bGalopante(short A[], int size, int x)
+int bGalopante(const unsigned int* A, int size, int x)
 {
     if (size == 0)
     {
@@ -231,7 +231,7 @@ int bGalopante(short A[], int size, int x)
         {
             linf = linf * 2;
         }
-        return bBinaria(A, linf - 1, size - linf, x);
+        return bBinaria(A, linf - 1, min((linf*2)-linf,size - linf), x);
     }
 }
 
@@ -283,7 +283,7 @@ indice BusquedaGalopante(const unsigned int* A, indice size, unsigned int x)
     else
     {
         indice linf = 1;
-        while (linf * 2 < size && A[linf * 2] < x)
+        while (linf * 2 < size && A[(linf * 2)-1] < x)
         {
             linf = linf * 2;
         }
@@ -292,7 +292,7 @@ indice BusquedaGalopante(const unsigned int* A, indice size, unsigned int x)
         // cout << "linf: " << linf << endl;
         // cout << "size - 1:" << size - 1 << endl;
         // cout << "min: " << min(linf * 2, size - 1) << endl;
-        indice lsup = min(linf * 2, size - 1);
+        indice lsup = min((linf * 2)-1, size - 1);
         return BusquedaBinaria(A, linf - 1, lsup, x);
     }
 }
@@ -453,7 +453,7 @@ int main(int argc, char* argv[])
         int valoresEncontradosBusquedaGalopante = 0;
         inicio = chrono::high_resolution_clock::now();
         for (unsigned int x : keys) {
-            if (BusquedaGalopante(A, N, x) != numeric_limits<indice>::max()) {
+            if (bGalopante(A, N, x) != numeric_limits<indice>::max()) {
                 valoresEncontradosBusquedaGalopante++;
             }
         }
